@@ -21,6 +21,7 @@ add_action(
 // Reads the table directly because backdoors hide users from WP_User_Query.
 function kg_admin_accounts() {
 	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
 			"SELECT u.ID, u.user_login FROM {$wpdb->users} u

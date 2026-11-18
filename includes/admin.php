@@ -41,10 +41,13 @@ add_action(
 
 function kg_action_button( $action, $label, $class = 'button' ) {
 	printf(
-		'<form method="post" action="%s" style="display:inline"><input type="hidden" name="action" value="kg_action"><input type="hidden" name="kg_do" value="%s">%s<button class="button %s">%s</button></form>',
+		'<form method="post" action="%s" style="display:inline"><input type="hidden" name="action" value="kg_action"><input type="hidden" name="kg_do" value="%s">',
 		esc_url( admin_url( 'admin-post.php' ) ),
-		esc_attr( $action ),
-		wp_nonce_field( 'kg_action', '_wpnonce', true, false ),
+		esc_attr( $action )
+	);
+	wp_nonce_field( 'kg_action' );
+	printf(
+		'<button class="button %s">%s</button></form>',
 		esc_attr( $class ),
 		esc_html( $label )
 	);

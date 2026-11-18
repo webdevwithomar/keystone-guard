@@ -51,6 +51,7 @@ function kg_apply_site_defaults() {
 	$post = get_page_by_path( 'hello-world', OBJECT, 'post' );
 	if ( $post ) {
 		// A direct update keeps the post's modified date unchanged.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$wpdb->update(
 			$wpdb->posts,
 			array(

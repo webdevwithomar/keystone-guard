@@ -19,45 +19,48 @@ function kg_rules_allowed() {
 
 function kg_root_rules() {
 	$php = KG_PHP_EXTENSIONS;
-	return <<<HTACCESS
-# ==============================================================================
-# BEGIN CUSTOM WORDPRESS HARDENING
-# Managed by Keystone Guard. Edits inside this block are replaced on update.
-# ==============================================================================
-Options -Indexes
-
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-
-    # XML-RPC
-    RewriteRule ^xmlrpc\.php$ - [F,L]
-
-    # Author scans on the public site only, so wp-admin filters and the REST API work
-    RewriteCond %{REQUEST_URI} !^/(?:wp-admin|wp-json)(?:/|$) [NC]
-    RewriteCond %{QUERY_STRING} !(?:^|&)rest_route= [NC]
-    RewriteCond %{QUERY_STRING} (?:^|&)author=\d+(?:&|$) [NC]
-    RewriteRule .* - [F,L]
-
-    # Sensitive files
-    RewriteRule ^(?:readme\.html|license\.txt|wp-config\.php|wp-config-sample\.php)$ - [NC,F,L]
-    RewriteRule (?:^|/)\.(?:git|svn|env|htaccess|htpasswd|DS_Store)(?:/|$) - [NC,F,L]
-    RewriteRule \.(?:sql|sql\.gz|bak|old|orig|save|swp)$ - [NC,F,L]
-    RewriteRule ^wp-content/(?:debug\.log|mc_data(?:/|$)) - [NC,F,L]
-
-    # WordPress internals
-    RewriteRule ^wp-admin/install\.php$ - [F,L]
-    RewriteRule ^wp-admin/includes/ - [F,L]
-    RewriteRule ^wp-includes/[^/]+\.php$ - [F,L]
-    RewriteRule ^wp-includes/js/tinymce/langs/.+\.php - [F,L]
-    RewriteRule ^wp-includes/theme-compat/ - [F,L]
-
-    # PHP in uploads
-    RewriteRule ^wp-content/uploads/.*\.{$php}\.?$ - [NC,F,L]
-</IfModule>
-# ==============================================================================
-# END CUSTOM WORDPRESS HARDENING
-# ==============================================================================
-HTACCESS;
+	return implode(
+		"\n",
+		array(
+			'# ==============================================================================',
+			'# BEGIN CUSTOM WORDPRESS HARDENING',
+			'# Managed by Keystone Guard. Edits inside this block are replaced on update.',
+			'# ==============================================================================',
+			'Options -Indexes',
+			'',
+			'<IfModule mod_rewrite.c>',
+			'    RewriteEngine On',
+			'',
+			'    # XML-RPC',
+			'    RewriteRule ^xmlrpc\.php$ - [F,L]',
+			'',
+			'    # Author scans on the public site only, so wp-admin filters and the REST API work',
+			'    RewriteCond %{REQUEST_URI} !^/(?:wp-admin|wp-json)(?:/|$) [NC]',
+			'    RewriteCond %{QUERY_STRING} !(?:^|&)rest_route= [NC]',
+			'    RewriteCond %{QUERY_STRING} (?:^|&)author=\d+(?:&|$) [NC]',
+			'    RewriteRule .* - [F,L]',
+			'',
+			'    # Sensitive files',
+			'    RewriteRule ^(?:readme\.html|license\.txt|wp-config\.php|wp-config-sample\.php)$ - [NC,F,L]',
+			'    RewriteRule (?:^|/)\.(?:git|svn|env|htaccess|htpasswd|DS_Store)(?:/|$) - [NC,F,L]',
+			'    RewriteRule \.(?:sql|sql\.gz|bak|old|orig|save|swp)$ - [NC,F,L]',
+			'    RewriteRule ^wp-content/(?:debug\.log|mc_data(?:/|$)) - [NC,F,L]',
+			'',
+			'    # WordPress internals',
+			'    RewriteRule ^wp-admin/install\.php$ - [F,L]',
+			'    RewriteRule ^wp-admin/includes/ - [F,L]',
+			'    RewriteRule ^wp-includes/[^/]+\.php$ - [F,L]',
+			'    RewriteRule ^wp-includes/js/tinymce/langs/.+\.php - [F,L]',
+			'    RewriteRule ^wp-includes/theme-compat/ - [F,L]',
+			'',
+			'    # PHP in uploads',
+			'    RewriteRule ^wp-content/uploads/.*\.' . $php . '\.?$ - [NC,F,L]',
+			'</IfModule>',
+			'# ==============================================================================',
+			'# END CUSTOM WORDPRESS HARDENING',
+			'# ==============================================================================',
+		)
+	);
 }
 
 function kg_nested_rules( $rules ) {
@@ -91,7 +94,7 @@ function kg_write_file( $path, $contents ) {
 
 function kg_htaccess_sync() {
 	$root = ABSPATH . '.htaccess';
-	if ( ! file_exists( $root ) || ! is_writable( $root ) ) {
+	if ( ! file_exists( $root ) || ! wp_is_writable( $root ) ) {
 		update_option( 'kg_htaccess_status', 'not-writable', false );
 		return false;
 	}
@@ -107,7 +110,7 @@ function kg_htaccess_sync() {
 			home_url( '/' ),
 			array(
 				'timeout'   => 10,
-				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+				'sslverify' => apply_filters( 'https_local_ssl_verify', false ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter.
 			)
 		);
 		if ( ! is_wp_error( $check ) && wp_remote_retrieve_response_code( $check ) >= 500 ) {
@@ -118,7 +121,7 @@ function kg_htaccess_sync() {
 	}
 
 	foreach ( kg_nested_targets() as $path => $rules ) {
-		if ( ! file_exists( $path ) || ! is_writable( $path ) ) {
+		if ( ! file_exists( $path ) || ! wp_is_writable( $path ) ) {
 			continue;
 		}
 		$current = (string) file_get_contents( $path );
@@ -137,7 +140,7 @@ function kg_htaccess_sync() {
 function kg_htaccess_remove() {
 	$paths = array_merge( array( ABSPATH . '.htaccess' ), array_keys( kg_nested_targets() ) );
 	foreach ( $paths as $path ) {
-		if ( file_exists( $path ) && is_writable( $path ) ) {
+		if ( file_exists( $path ) && wp_is_writable( $path ) ) {
 			$current = (string) file_get_contents( $path );
 			$cleaned = kg_strip_block( $current );
 			if ( $cleaned !== $current ) {
