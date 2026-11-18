@@ -7,7 +7,8 @@
  * Requires PHP:      7.4
  * Author:            Omar Faruque
  * License:           GPL-2.0-or-later
- * Update URI:        https://github.com/webdevwithomar/keystone-guard
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Update URI:       https://github.com/webdevwithomar/keystone-guard
  * Text Domain:       keystone-guard
  */
 
@@ -17,6 +18,7 @@ define( 'KG_VERSION', '1.0.0' );
 define( 'KG_FILE', __FILE__ );
 define( 'KG_BASENAME', plugin_basename( __FILE__ ) );
 define( 'KG_REPO', 'webdevwithomar/keystone-guard' );
+define( 'KG_MANAGED', true );
 
 require_once __DIR__ . '/includes/htaccess.php';
 require_once __DIR__ . '/includes/login.php';
@@ -29,8 +31,12 @@ register_activation_hook( __FILE__, 'kg_activate' );
 register_deactivation_hook( __FILE__, 'kg_deactivate' );
 
 function kg_activate() {
-	kg_htaccess_sync();
-	kg_apply_site_defaults();
+	if ( kg_rules_allowed() ) {
+		kg_htaccess_sync();
+	}
+	if ( kg_is_managed() ) {
+		kg_apply_site_defaults();
+	}
 	kg_monitor_set_baseline();
 	kg_monitor_run();
 	if ( ! wp_next_scheduled( 'kg_daily_check' ) ) {
@@ -49,7 +55,9 @@ add_action(
 	'plugins_loaded',
 	function () {
 		if ( get_option( 'kg_version' ) !== KG_VERSION ) {
-			kg_htaccess_sync();
+			if ( kg_rules_allowed() ) {
+				kg_htaccess_sync();
+			}
 			update_option( 'kg_version', KG_VERSION, false );
 		}
 	}

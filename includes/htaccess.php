@@ -8,6 +8,15 @@ defined( 'ABSPATH' ) || exit;
 
 const KG_PHP_EXTENSIONS = '(?:php[0-9]?|pht|phtml?|phps|phar)';
 
+// Managed sites get everything on activation. The directory build asks first.
+function kg_is_managed() {
+	return defined( 'KG_MANAGED' ) && KG_MANAGED;
+}
+
+function kg_rules_allowed() {
+	return kg_is_managed() || 'yes' === get_option( 'kg_rules_enabled' );
+}
+
 function kg_root_rules() {
 	$php = KG_PHP_EXTENSIONS;
 	return <<<HTACCESS
@@ -94,7 +103,13 @@ function kg_htaccess_sync() {
 		kg_write_file( $root, $after );
 
 		// A server error here means the rules do not suit this host.
-		$check = wp_remote_get( home_url( '/' ), array( 'timeout' => 10, 'sslverify' => false ) );
+		$check = wp_remote_get(
+			home_url( '/' ),
+			array(
+				'timeout'   => 10,
+				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+			)
+		);
 		if ( ! is_wp_error( $check ) && wp_remote_retrieve_response_code( $check ) >= 500 ) {
 			kg_write_file( $root, $before );
 			update_option( 'kg_htaccess_status', 'rolled-back', false );

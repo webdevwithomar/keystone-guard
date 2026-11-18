@@ -18,6 +18,12 @@ add_action(
 		if ( ! current_user_can( 'manage_options' ) || false !== get_option( 'kg_alerts', false ) ) {
 			return;
 		}
+		if ( ! kg_is_managed() ) {
+			$screen = get_current_screen();
+			if ( ! $screen || ! in_array( $screen->id, array( 'plugins', 'tools_page_keystone-guard' ), true ) ) {
+				return;
+			}
+		}
 		$email = get_option( 'admin_email' );
 		echo '<div class="notice notice-info"><p>';
 		printf(
@@ -68,7 +74,24 @@ add_action(
 				kg_monitor_run();
 				break;
 			case 'sync_rules':
-				kg_htaccess_sync();
+				if ( kg_rules_allowed() ) {
+					kg_htaccess_sync();
+				}
+				break;
+			case 'rules_on':
+				update_option( 'kg_rules_enabled', 'yes', false );
+				if ( ! kg_htaccess_sync() ) {
+					delete_option( 'kg_rules_enabled' );
+				}
+				break;
+			case 'rules_off':
+				if ( ! kg_is_managed() ) {
+					delete_option( 'kg_rules_enabled' );
+					kg_htaccess_remove();
+				}
+				break;
+			case 'apply_defaults':
+				kg_apply_site_defaults();
 				break;
 		}
 		wp_safe_redirect( admin_url( 'tools.php?page=keystone-guard&updated=1' ) );
@@ -87,6 +110,38 @@ function kg_status_rows() {
 		array( __( 'File editor', 'keystone-guard' ), defined( 'DISALLOW_FILE_EDIT' ) && DISALLOW_FILE_EDIT, __( 'Theme and plugin editing in wp-admin is off.', 'keystone-guard' ) ),
 		array( __( 'Email alerts', 'keystone-guard' ), 'yes' === get_option( 'kg_alerts' ), get_option( 'admin_email' ) ),
 	);
+}
+
+function kg_render_choices() {
+	global $is_apache;
+
+	if ( kg_is_managed() ) {
+		return;
+	}
+	?>
+	<h2><?php esc_html_e( 'Optional changes', 'keystone-guard' ); ?></h2>
+	<p style="max-width:900px"><?php esc_html_e( 'These change your site only when you choose them. Server rules are added to the top of your .htaccess file and are removed when you turn them off or deactivate the plugin. Back up your site first.', 'keystone-guard' ); ?></p>
+	<?php if ( 'rolled-back' === get_option( 'kg_htaccess_status' ) ) : ?>
+		<div class="notice notice-error inline"><p><?php esc_html_e( 'The server rules caused an error on this server, so they were removed.', 'keystone-guard' ); ?></p></div>
+	<?php elseif ( 'not-writable' === get_option( 'kg_htaccess_status' ) ) : ?>
+		<div class="notice notice-error inline"><p><?php esc_html_e( 'The .htaccess file is missing or cannot be changed.', 'keystone-guard' ); ?></p></div>
+	<?php endif; ?>
+	<p>
+		<?php
+		if ( kg_rules_allowed() ) {
+			kg_action_button( 'rules_off', __( 'Turn server rules off', 'keystone-guard' ) );
+		} elseif ( $is_apache ) {
+			kg_action_button( 'rules_on', __( 'Turn server rules on', 'keystone-guard' ), 'button-primary' );
+		} else {
+			esc_html_e( 'Server rules need Apache or LiteSpeed.', 'keystone-guard' );
+		}
+		echo ' ';
+		if ( ! get_option( 'kg_defaults_applied' ) ) {
+			kg_action_button( 'apply_defaults', __( 'Close comments and pings on new posts', 'keystone-guard' ) );
+		}
+		?>
+	</p>
+	<?php
 }
 
 function kg_render_page() {
@@ -111,6 +166,8 @@ function kg_render_page() {
 			<?php endforeach; ?>
 			</tbody>
 		</table>
+
+		<?php kg_render_choices(); ?>
 
 		<h2><?php esc_html_e( 'Security check', 'keystone-guard' ); ?></h2>
 		<p>
@@ -145,8 +202,10 @@ function kg_render_page() {
 			echo ' ';
 			kg_action_button( 'accept', __( 'Mark current accounts and files as safe', 'keystone-guard' ) );
 			echo ' ';
-			kg_action_button( 'sync_rules', __( 'Rewrite server rules', 'keystone-guard' ) );
-			echo ' ';
+			if ( kg_rules_allowed() ) {
+				kg_action_button( 'sync_rules', __( 'Rewrite server rules', 'keystone-guard' ) );
+				echo ' ';
+			}
 			kg_action_button( 'yes' === get_option( 'kg_alerts' ) ? 'alerts_off' : 'alerts_on', 'yes' === get_option( 'kg_alerts' ) ? __( 'Turn email alerts off', 'keystone-guard' ) : __( 'Turn email alerts on', 'keystone-guard' ) );
 			?>
 		</p>
